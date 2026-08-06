@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "Focusly",
+    "slug": "focusly",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#0B1220"
+    },
+    "extra": {},
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.focusly.app"
+    },
+    "android": {
+      "package": "com.focusly.app"
+    }
+  }
+}
