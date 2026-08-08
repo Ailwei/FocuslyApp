@@ -22,15 +22,6 @@ export const fetchSessions = async (userId: string) => {
   return data;
 };
 
-export const fetchBadges = async (userId: string) => {
-  const { data, error } = await supabase
-    .from('badges')
-    .select('id, title, category, unlocked')
-    .eq('user_id', userId);
-
-  if (error) throw error;
-  return data;
-};
 
 export const insertSession = async (
   userId: string,

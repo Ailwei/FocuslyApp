@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, Screen, ScreenTitle } from '@/components/UI';
 import { colors, spacing, fontSizes } from '@/theme/theme';
@@ -8,7 +8,10 @@ import { Badge } from '@/types/models';
 import { useBadges } from '@/context/BadgeContext';
 
 const BadgeTile: React.FC<{ badge: Badge }> = ({ badge }) => (
-  <Card variant={badge.unlocked ? 'dark' : 'mid'} style={[styles.badgeTile, badge.unlocked ? styles.badgeTileUnlocked : styles.badgeTileLocked]}>
+  <Card
+    variant={badge.unlocked ? 'dark' : 'mid'}
+    style={[styles.badgeTile, badge.unlocked ? styles.badgeTileUnlocked : styles.badgeTileLocked]}
+  >
     <View style={styles.badgeIconWrap}>
       <Ionicons
         name={badge.unlocked ? 'ribbon' : 'ribbon-outline'}
@@ -26,10 +29,46 @@ const BadgeTile: React.FC<{ badge: Badge }> = ({ badge }) => (
 );
 
 export const BadgesScreen: React.FC = () => {
- const { badges } = useBadges();
-  const unlockedCount = badges.filter((b: { unlocked: any; }) => b.unlocked).length;
+  const { badges, loading, error, refreshBadges } = useBadges();
 
-  const byCategory = (category: Badge['category']) => badges.filter((b: { category: string; }) => b.category === category);
+  const unlockedCount = badges.filter((b: Badge) => b.unlocked).length;
+console.log("badges unclocked", unlockedCount, badges)
+  const categories = useMemo(() => {
+    const seen = new Set<string>();
+    const ordered: string[] = [];
+    for (const b of badges) {
+      if (!seen.has(b.category)) {
+        seen.add(b.category);
+        ordered.push(b.category);
+      }
+    }
+    return ordered;
+  }, [badges]);
+
+  const byCategory = (category: string) => badges.filter((b: Badge) => b.category === category);
+
+  if (loading && badges.length === 0) {
+    return (
+      <Screen>
+        <ScreenTitle>Badges</ScreenTitle>
+        <View style={styles.centered}>
+          <ActivityIndicator color={colors.gold} />
+        </View>
+      </Screen>
+    );
+  }
+
+  if (error && badges.length === 0) {
+    return (
+      <Screen>
+        <ScreenTitle>Badges</ScreenTitle>
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>Couldn't load badges.</Text>
+          <Text style={styles.retryText} onPress={refreshBadges}>Tap to retry</Text>
+        </View>
+      </Screen>
+    );
+  }
 
   return (
     <Screen>
@@ -37,27 +76,16 @@ export const BadgesScreen: React.FC = () => {
         <ScreenTitle>Badges</ScreenTitle>
         <Text style={styles.subtitle}>{unlockedCount} of {badges.length} unlocked</Text>
 
-        <Text style={styles.sectionLabel}>Milestones</Text>
-        <View style={styles.grid}>
-          {byCategory('Milestones').map((b: Badge) => (
-            <BadgeTile key={b.id} badge={b} />
-          ))}
-        </View>
-
-        <Text style={styles.sectionLabel}>Time</Text>
-        <View style={styles.grid}>
-          {byCategory('Time').map((b: Badge) => (
-            <BadgeTile key={b.id} badge={b} />
-          ))}
-        </View>
-
-        <Text style={styles.sectionLabel}>Sessions</Text>
-        <View style={styles.grid}>
-          {byCategory('Sessions').map((b: Badge) => (
-            <BadgeTile key={b.id} badge={b} />
-          ))}
-        </View>
-
+        {categories.map((category) => (
+          <View key={category}>
+            <Text style={styles.sectionLabel}>{category}</Text>
+            <View style={styles.grid}>
+              {byCategory(category).map((b: Badge) => (
+                <BadgeTile key={b.id} badge={b} />
+              ))}
+            </View>
+          </View>
+        ))}
       </ScrollView>
     </Screen>
   );
@@ -123,26 +151,19 @@ const styles = StyleSheet.create({
     top: verticalScale(8),
     backgroundColor: 'transparent',
   },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-    marginBottom: spacing.xl,
-  },
-  statTile: {
-    minWidth: '45%',
-    flex: 1,
-    minHeight: 100,
+  centered: {
+    alignItems: 'center',
     justifyContent: 'center',
+    paddingTop: verticalScale(spacing.xl),
   },
-  statValue: {
-    color: colors.textPrimary,
-    fontSize: fontSizes.lg,
-    fontWeight: '800',
-    marginBottom: spacing.xs,
-  },
-  statLabel: {
+  errorText: {
     color: colors.textSecondary,
-    fontSize: fontSizes.sm,
+    fontSize: normalizeFontSize(fontSizes.md),
+    marginBottom: verticalScale(spacing.sm),
+  },
+  retryText: {
+    color: colors.gold,
+    fontSize: normalizeFontSize(fontSizes.sm),
+    fontWeight: '700',
   },
 });

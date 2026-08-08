@@ -7,7 +7,7 @@ import React, {
 } from "react";
 import { Badge } from "@/types/models";
 import { useAuth } from "./AuthContext";
-import { fetchBadges } from "@/api/focusService";
+import { fetchBadges } from "@/api/badgeService";
 
 const BadgeContext = createContext<any>(null);
 
@@ -25,7 +25,7 @@ export const BadgeProvider = ({
 
     if (!user) return;
 
-    const data = await fetchBadges(user.id);
+    const data = await fetchBadges();
 
     setBadges(data);
 

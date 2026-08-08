@@ -6,36 +6,51 @@ export async function checkBadges(
 ) {
   const supabase = supabaseClient ?? createSupabaseClient();
 
-  // Get all sessions
   const { data: sessions, error: sessionError } = await supabase
     .from("sessions")
-    .select("duration_minutes")
+    .select("duration_minutes, completed_at")
     .eq("user_id", userId);
 
   if (sessionError) throw sessionError;
 
   const sessionCount = sessions.length;
+
   const totalMinutes = sessions.reduce(
     (sum: number, session: any) => sum + session.duration_minutes,
     0
   );
 
-  // Longest session
   const longestSession =
     sessions.length === 0
       ? 0
       : Math.max(...sessions.map((s: any) => s.duration_minutes));
 
-  // Load all badge definitions
+  const activeDays = new Set(
+    sessions.map((s: any) => new Date(s.completed_at).toISOString().slice(0, 10))
+  ).size;
+
   const { data: badges, error: badgeError } = await supabase
     .from("badges")
     .select("*");
 
   if (badgeError) throw badgeError;
 
+  const { data: existingUserBadges, error: existingError } = await supabase
+    .from("user_badges")
+    .select("badge_id")
+    .eq("user_id", userId);
+
+  if (existingError) throw existingError;
+
+  const alreadyUnlocked = new Set(
+    (existingUserBadges ?? []).map((ub: any) => ub.badge_id)
+  );
+
   const unlocked: any[] = [];
 
   for (const badge of badges) {
+    if (alreadyUnlocked.has(badge.id)) continue;
+
     let earned = false;
 
     switch (badge.rule_type) {
@@ -47,8 +62,12 @@ export async function checkBadges(
         earned = totalMinutes >= badge.rule_value;
         break;
 
-      case "session_duration":
+      case "longest_session":
         earned = longestSession >= badge.rule_value;
+        break;
+
+      case "active_days":
+        earned = activeDays >= badge.rule_value;
         break;
     }
 
@@ -61,7 +80,6 @@ export async function checkBadges(
         badge_id: badge.id,
       });
 
-    // Ignore duplicate unlocks
     if (!error) {
       unlocked.push(badge);
     }

@@ -31,7 +31,11 @@ export const DashboardScreen: React.FC = () => {
 
   const { profile, sessions, stats } = useFocus();
 
+  console.log("profile", profile, "sessions", sessions, "stats", stats)
+
   const { badges } = useBadges();
+
+  console.log("bages", badges)
 
   const unlockedBadges = badges.filter(
     (badge: { unlocked: any; }) => badge.unlocked

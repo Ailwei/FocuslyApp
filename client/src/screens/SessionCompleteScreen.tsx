@@ -67,7 +67,7 @@ export const SessionCompleteScreen: React.FC<Props> = ({ route, navigation }) =>
       <PrimaryButton
         title="Back to dashboard"
         variant="primary"
-        onPress={() => navigation.popToTop()}
+        onPress={() => navigation.navigate("MainTabs")}
         style={{ marginTop: spacing.xl, width: '100%' }}
       />
     </Screen>

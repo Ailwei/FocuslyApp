@@ -16,12 +16,3 @@ create table sessions (
   completed_at timestamptz not null,
   created_at timestamptz default timezone('utc', now())
 );
-
-create table badges (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid references profiles(id) on delete cascade,
-  title text not null,
-  category text not null,
-  unlocked boolean not null default false,
-  created_at timestamptz default timezone('utc', now())
-);

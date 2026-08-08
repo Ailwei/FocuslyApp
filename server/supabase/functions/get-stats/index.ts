@@ -7,7 +7,6 @@ export async function handleGetStats(req: Request, supabaseClient?: any) {
   if (!user_id) return jsonResponse({ error: 'Missing user_id' }, 400);
 
   const supabase = supabaseClient ?? createSupabaseClient();
-  // Simple stats: total sessions, completed sessions, average duration
   const totalQ = await supabase.from('sessions').select('id', { count: 'exact' }).eq('user_id', user_id);
   const completedQ = await supabase.from('sessions').select('id', { count: 'exact' }).eq('user_id', user_id).eq('completed', true);
   const avgQ = await supabase.rpc('avg_session_duration', { p_user_id: user_id }).catch(() => ({ data: null }));

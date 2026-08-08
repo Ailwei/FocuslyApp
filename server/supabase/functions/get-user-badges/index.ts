@@ -1,6 +1,5 @@
 import { createSupabaseClient, jsonResponse } from '../_shared.ts';
 
-
 export async function handleGetUserBadges(
   req: Request,
   supabaseClient?: any
@@ -10,124 +9,53 @@ export async function handleGetUserBadges(
     return new Response(null, { status: 405 });
   }
 
-
-  const supabase =
-    supabaseClient ?? createSupabaseClient();
-
+  const supabase = supabaseClient ?? createSupabaseClient();
 
   try {
-
     const authHeader = req.headers.get('Authorization') ?? '';
 
     if (!authHeader.startsWith('Bearer ')) {
-      return jsonResponse(
-        { error: 'Missing authorization token' },
-        401
-      );
+      return jsonResponse({ error: 'Missing authorization token' }, 401);
     }
-
 
     const token = authHeader.replace('Bearer ', '');
 
-
-    // Get current user
-    const userResponse = await fetch(
-      `${Deno.env.get('SUPABASE_URL')}/auth/v1/user`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          apikey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-        },
-      }
-    );
+    const { data: userData, error: authError } = await supabase.auth.getUser(token);
 
 
-    if (!userResponse.ok) {
-      return jsonResponse(
-        { error: 'Invalid token' },
-        401
-      );
+    if (authError || !userData?.user) {
+      return jsonResponse({ error: 'Invalid token' }, 401);
     }
 
+    const userId = userData.user.id;
 
-    const user = await userResponse.json();
-
-    const userId = user.id;
-
-
-    console.log(
-      "Getting badges for user:",
-      userId
-    );
-
-
-    const { data, error } = await supabase
+    const userBadgesRes = await supabase
       .from('user_badges')
-      .select(`
-        id,
-        unlocked_at,
-        badges (
-          id,
-          title,
-          description,
-          category,
-          icon
-        )
-      `)
+      .select('badge_id, unlocked_at, badges(id, title, description, category, icon)')
       .eq('user_id', userId)
-      .order(
-        'unlocked_at',
-        {
-          ascending:false
-        }
-      );
+      .order('unlocked_at', { ascending: false });
 
 
-    if (error) {
-
-      console.log(
-        "BADGE QUERY ERROR:",
-        error
-      );
-
-      return jsonResponse(
-        {
-          error:error.message
-        },
-        500
-      );
+    if (userBadgesRes.error) {
+      console.error('USER BADGES QUERY ERROR:', userBadgesRes.error);
+      return jsonResponse({ error: 'Failed to load badges' }, 500);
     }
 
+    const badges = (userBadgesRes.data ?? []).map((row: any) => ({
+      id: row.badges.id,
+      title: row.badges.title,
+      description: row.badges.description,
+      category: row.badges.category,
+      icon: row.badges.icon,
+      unlocked: true,
+      unlockedAt: row.unlocked_at,
+    }));
 
-    return jsonResponse(
-      {
-        badges:data ?? []
-      },
-      200
-    );
-
-
-  } catch(error:any){
-
-    console.log(
-      "GET USER BADGES ERROR:",
-      error
-    );
-
-
-    return jsonResponse(
-      {
-        error:error.message
-      },
-      500
-    );
+    return jsonResponse({ badges }, 200);
+  } catch (error: any) {
+    console.error('GET USER BADGES ERROR:', error);
+    return jsonResponse({ error: 'Internal server error' }, 500);
   }
 }
 
-
-
-export default function(req:Request){
-
-  return handleGetUserBadges(req);
-
-}
+Deno.serve((req) => handleGetUserBadges(req));

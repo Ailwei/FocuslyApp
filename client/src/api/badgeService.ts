@@ -1,26 +1,33 @@
 import { supabase } from "@/api/supabaseClient";
+import { Badge } from "@/types/models";
 
-export async function fetchBadges(userId: string) {
-  const { data, error } = await supabase
-    .from("badges")
-    .select(`
-      id,
-      title,
-      description,
-      category,
-      icon,
-      user_badges!left(user_id)
-    `)
-    .eq("user_badges.user_id", userId);
+export async function fetchBadges(): Promise<Badge[]> {
+  const {
+    data: sessionData,
+    error: sessionError,
+  } = await supabase.auth.getSession();
+
+  if (sessionError) throw sessionError;
+
+  const token = sessionData.session?.access_token;
+
+  if (!token) {
+    throw new Error("No authenticated session");
+  }
+
+  const { data, error } = await supabase.functions.invoke("get-user-badges", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 
   if (error) throw error;
 
-  return (data ?? []).map((badge: any) => ({
+  return (data?.badges ?? []).map((badge: any) => ({
     id: badge.id,
     title: badge.title,
-    description: badge.description,
     category: badge.category,
-    icon: badge.icon,
-    unlocked: badge.user_badges?.length > 0,
+    unlocked: badge.unlocked,
   }));
 }

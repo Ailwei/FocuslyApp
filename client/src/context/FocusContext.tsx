@@ -1,7 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Badge, FocusSession, Stats, UserProfile } from '@/types/models';
 import { useAuth } from '@/context/AuthContext';
-import { fetchBadges, fetchProfile, fetchSessions, insertSession } from '@/api/focusService';
+import { useBadges } from '@/context/BadgeContext';
+import { fetchProfile, fetchSessions, insertSession } from '@/api/focusService';
 
 interface FocusContextValue {
   profile: UserProfile | null;
@@ -15,8 +16,8 @@ const FocusContext = createContext<FocusContextValue | undefined>(undefined);
 
 export const FocusProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+  const { badges, refreshBadges } = useBadges();
   const [sessions, setSessions] = useState<FocusSession[]>([]);
-  const [badges, setBadges] = useState<Badge[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
@@ -25,7 +26,6 @@ export const FocusProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (!user) {
         setProfile(null);
         setSessions([]);
-        setBadges([]);
         return;
       }
 
@@ -35,7 +35,7 @@ export const FocusProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         setProfile({
           id: user.id,
-          name: profileData?.name ?? user.email,
+          name: profileData?.name ?? user?.name ?? user.email,
           email: profileData?.email ?? user.email,
           memberSince: profileData?.member_since,
         });
@@ -51,18 +51,6 @@ export const FocusProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               }))
             : [],
         );
-
-        const badgeRows = await fetchBadges(user.id);
-        setBadges(
-          Array.isArray(badgeRows)
-            ? badgeRows.map((row: any) => ({
-                id: row.id,
-                title: row.title,
-                category: row.category,
-                unlocked: row.unlocked,
-              }))
-            : [],
-        );
       } catch (error) {
         console.warn('Unable to load focus data:', error);
       } finally {
@@ -73,75 +61,57 @@ export const FocusProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     loadBackendData();
   }, [user]);
 
-const addSession = useCallback(
-  async (task: string, durationMinutes: number): Promise<Badge[]> => {
-    console.log("1. addSession started", { task, durationMinutes });
-
-    const newSession: FocusSession = {
-      id: Date.now().toString(),
-      task,
-      durationMinutes,
-      completedAt: new Date().toISOString(),
-    };
-
-    setSessions((prev) => [newSession, ...prev]);
-
-    if (!user) {
-      console.log("No user found");
-      return [];
-    }
-
-    try {
-      console.log("Calling insertSession");
-
-      const data = await insertSession(
-        user.id,
+  const addSession = useCallback(
+    async (task: string, durationMinutes: number): Promise<Badge[]> => {
+      const newSession: FocusSession = {
+        id: Date.now().toString(),
         task,
         durationMinutes,
-        newSession.completedAt
-      );
+        completedAt: new Date().toISOString(),
+      };
 
-      console.log("insertSession returned", data);
+      setSessions((prev) => [newSession, ...prev]);
 
-      if (data?.session) {
-        setSessions((prev) =>
-          prev.map((session) =>
-            session.id === newSession.id
-              ? { ...session, id: data.session.id }
-              : session
-          )
-        );
+      if (!user) {
+        return [];
       }
 
-      // Reload badges after backend checkBadges()
-      const badgeRows = await fetchBadges(user.id);
+      try {
+        const data = await insertSession(
+          user.id,
+          task,
+          durationMinutes,
+          newSession.completedAt
+        );
 
-      const refreshedBadges: Badge[] = Array.isArray(badgeRows)
-        ? badgeRows.map((row: any) => ({
-            id: row.id,
-            title: row.title,
-            category: row.category,
-            unlocked: row.unlocked,
-          }))
-        : [];
+        if (data?.session) {
+          setSessions((prev) =>
+            prev.map((session) =>
+              session.id === newSession.id
+                ? { ...session, id: data.session.id }
+                : session
+            )
+          );
+        }
 
-      setBadges(refreshedBadges);
+        const previouslyUnlockedIds = new Set(
+          badges.filter((b: Badge) => b.unlocked).map((b: Badge) => b.id)
+        );
 
-      const newlyUnlocked = refreshedBadges.filter(
-        (badge) => badge.unlocked
-      );
+        const refreshedBadges: Badge[] = await refreshBadges();
 
-      console.log("Unlocked badges:", newlyUnlocked);
+        const newlyUnlocked = refreshedBadges.filter(
+          (badge) => badge.unlocked && !previouslyUnlockedIds.has(badge.id)
+        );
 
-      return newlyUnlocked;
-
-    } catch (error) {
-      console.error("insertSession failed", error);
-      return [];
-    }
-  },
-  [user]
-);
+        return newlyUnlocked;
+      } catch (error) {
+        console.error('insertSession failed', error);
+        return [];
+      }
+    },
+    [user, badges, refreshBadges]
+  );
 
   const stats: Stats = useMemo(() => {
     const totalSessions = sessions.length;
