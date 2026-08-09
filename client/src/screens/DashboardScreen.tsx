@@ -82,30 +82,30 @@ export const DashboardScreen: React.FC = () => {
 
       <Card variant="mid" style={styles.badgeSummaryCard}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={styles.sectionLabel}>Badges</Text>
-           <Text style={styles.badgeSummaryText}>
-  {unlockedBadges.length} unlocked
-</Text>
+            <Text style={styles.badgeSummaryText}>
+              {unlockedBadges.length} unlocked
+            </Text>
 
-{unlockedBadges.length > 0 ? (
-  <Text 
-    style={styles.badgePreview}
-    numberOfLines={1}
-  >
-    Latest: {unlockedBadges[unlockedBadges.length - 1].title}
-  </Text>
-) : (
-  <Text style={styles.badgePreview}>
-    No badges yet
-  </Text>
-)}
+            {unlockedBadges.length > 0 ? (
+              <View style={styles.latestBadgeRow}>
+                <View style={styles.latestBadgeIconWrap}>
+                  <Ionicons name="ribbon" size={16} color={colors.accent} />
+                </View>
+                <Text style={styles.badgePreview} numberOfLines={1}>
+                  {unlockedBadges[unlockedBadges.length - 1].title}
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.badgePreview}>No badges yet</Text>
+            )}
           </View>
           <Text
             style={styles.badgeCTA}
             onPress={() => (navigation as any).navigate('Badges')}
           >
-            View
+            More Badges
           </Text>
         </View>
       </Card>
@@ -223,5 +223,19 @@ const styles = StyleSheet.create({
   historyDuration: {
     color: colors.textPrimary,
     fontSize: normalizeFontSize(fontSizes.md),
+  },
+  latestBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: verticalScale(spacing.xs),
+  },
+  latestBadgeIconWrap: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.cardDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: scale(spacing.xs),
   },
 });

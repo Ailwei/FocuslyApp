@@ -3,13 +3,18 @@ import { Badge, FocusSession, Stats, UserProfile } from '@/types/models';
 import { useAuth } from '@/context/AuthContext';
 import { useBadges } from '@/context/BadgeContext';
 import { fetchProfile, fetchSessions, insertSession } from '@/api/focusService';
+import { DistractionEvent } from '@/hooks/useDistractionDetector';
 
 interface FocusContextValue {
   profile: UserProfile | null;
   sessions: FocusSession[];
   stats: Stats;
   isLoading: boolean;
-  addSession: (task: string, durationMinutes: number) => Promise<Badge[]>;
+  addSession: (
+    task: string,
+    durationMinutes: number,
+    distractions?: DistractionEvent[]
+  ) => Promise<Badge[]>;
 }
 
 const FocusContext = createContext<FocusContextValue | undefined>(undefined);
@@ -62,7 +67,11 @@ export const FocusProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [user]);
 
   const addSession = useCallback(
-    async (task: string, durationMinutes: number): Promise<Badge[]> => {
+    async (
+      task: string,
+      durationMinutes: number,
+      distractions: DistractionEvent[] = []
+    ): Promise<Badge[]> => {
       const newSession: FocusSession = {
         id: Date.now().toString(),
         task,
@@ -77,19 +86,20 @@ export const FocusProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       try {
-        const data = await insertSession(
+        const session = await insertSession(
           user.id,
           task,
           durationMinutes,
-          newSession.completedAt
+          newSession.completedAt,
+          distractions,
         );
 
-        if (data?.session) {
+        if (session?.id) {
           setSessions((prev) =>
-            prev.map((session) =>
-              session.id === newSession.id
-                ? { ...session, id: data.session.id }
-                : session
+            prev.map((s) =>
+              s.id === newSession.id
+                ? { ...s, id: session.id }
+                : s
             )
           );
         }

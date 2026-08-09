@@ -9,7 +9,12 @@ import { Badge } from "@/types/models";
 import { useAuth } from "./AuthContext";
 import { fetchBadges } from "@/api/badgeService";
 
-const BadgeContext = createContext<any>(null);
+interface BadgeContextValue {
+  badges: Badge[];
+  refreshBadges: () => Promise<Badge[]>;
+}
+
+const BadgeContext = createContext<BadgeContextValue | null>(null);
 
 export const BadgeProvider = ({
   children
@@ -21,13 +26,15 @@ export const BadgeProvider = ({
 
   const [badges, setBadges] = useState<Badge[]>([]);
 
-  const refreshBadges = useCallback(async () => {
+  const refreshBadges = useCallback(async (): Promise<Badge[]> => {
 
-    if (!user) return;
+    if (!user) return [];
 
     const data = await fetchBadges();
 
     setBadges(data);
+
+    return data;
 
   }, [user]);
 
@@ -50,7 +57,7 @@ export const BadgeProvider = ({
 };
 
 
-export const useBadges = () => {
+export const useBadges = (): BadgeContextValue => {
   const ctx = useContext(BadgeContext);
 
   if (!ctx)

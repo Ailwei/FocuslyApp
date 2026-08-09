@@ -8,6 +8,7 @@ import { Screen } from '@/components/UI';
 import { colors, spacing, fontSizes, radius } from '@/theme/theme';
 import { responsiveWidth, scale, verticalScale, normalizeFontSize } from '@/theme/responsive';
 import { useFocus } from '@/context/FocusContext';
+import { useDistractionDetector } from '@/hooks/useDistractionDetector';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ActiveSession'>;
 
@@ -28,26 +29,34 @@ export const ActiveSessionScreen: React.FC<Props> = ({ route, navigation }) => {
   const [secondsLeft, setSecondsLeft] = useState(totalSeconds);
   const [isPaused, setIsPaused] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-const { addSession } = useFocus();                    // added hook call
+  const { addSession } = useFocus();
+
+  const [sessionStartedAt] = useState(() => new Date().toISOString());
+  const { distractions } = useDistractionDetector({ isActive: true });
 
   useEffect(() => {
-  if (isPaused) {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    return;
-  }
-  intervalRef.current = setInterval(() => {
-    setSecondsLeft((prev) => (prev <= 1 ? 0 : prev - 1));
-  }, 1000);
-  return () => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-  };
-}, [isPaused]);
+    if (isPaused) {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      return;
+    }
+    intervalRef.current = setInterval(() => {
+      setSecondsLeft((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isPaused]);
 
-useEffect(() => {
-  if (secondsLeft === 0) {
-    navigation.replace('SessionComplete', { task, durationMinutes });
-  }
-}, [secondsLeft, navigation, task, durationMinutes]);
+  useEffect(() => {
+    if (secondsLeft === 0) {
+      navigation.replace('SessionComplete', {
+        task,
+        durationMinutes,
+        distractions,
+        sessionStartedAt,
+      });
+    }
+  }, [secondsLeft, navigation, task, durationMinutes, distractions, sessionStartedAt]);
 
   const progress = secondsLeft / totalSeconds;
   const strokeDashoffset = CIRCUMFERENCE * (1 - progress);
@@ -55,7 +64,12 @@ useEffect(() => {
   const endSession = () => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     const elapsedMinutes = Math.max(1, Math.round((totalSeconds - secondsLeft) / 60));
-    navigation.replace('SessionComplete', { task, durationMinutes: elapsedMinutes });
+    navigation.replace('SessionComplete', {
+      task,
+      durationMinutes: elapsedMinutes,
+      distractions,
+      sessionStartedAt,
+    });
   };
 
   return (

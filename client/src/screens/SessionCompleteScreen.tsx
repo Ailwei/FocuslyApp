@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -8,40 +8,42 @@ import { Badge } from '@/types/models';
 import { colors, spacing, fontSizes } from '@/theme/theme';
 import { scale, verticalScale, normalizeFontSize } from '@/theme/responsive';
 import { useFocus } from '@/context/FocusContext';
+import { computeSessionInsight } from '@/utils/sessionInsights';
+import { BadgeUnlockModal } from '@/components/BadgeUnlockModal';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SessionComplete'>;
 
 export const SessionCompleteScreen: React.FC<Props> = ({ route, navigation }) => {
-  const { task, durationMinutes } = route.params;
+  const { task, durationMinutes, distractions = [], sessionStartedAt } = route.params;
   const { addSession } = useFocus();
   const [unlockedBadges, setUnlockedBadges] = useState<Badge[]>([]);
 
+  const insight = useMemo(
+    () =>
+      sessionStartedAt
+        ? computeSessionInsight(distractions, sessionStartedAt, durationMinutes)
+        : null,
+    [distractions, sessionStartedAt, durationMinutes]
+  );
 
-  console.log("added session", addSession)
+  useEffect(() => {
+    let isMounted = true;
 
- useEffect(() => {
-  console.log("SessionCompleteScreen mounted");
+    addSession(task, durationMinutes, distractions)
+      .then((newlyUnlocked) => {
+        if (isMounted) {
+          setUnlockedBadges(newlyUnlocked);
+        }
+      })
+      .catch((err) => {
+        console.error("addSession failed", err);
+      });
 
-  let isMounted = true;
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
-  console.log("Calling addSession");
-
-  addSession(task, durationMinutes)
-    .then((newlyUnlocked) => {
-      console.log("addSession finished", newlyUnlocked);
-
-      if (isMounted) {
-        setUnlockedBadges(newlyUnlocked);
-      }
-    })
-    .catch((err) => {
-      console.error("addSession failed", err);
-    });
-
-  return () => {
-    isMounted = false;
-  };
-}, []);
   return (
     <Screen style={styles.center}>
       <View style={styles.checkWrap}>
@@ -54,15 +56,18 @@ export const SessionCompleteScreen: React.FC<Props> = ({ route, navigation }) =>
       </Text>
       <Text style={styles.message}>Great work. That's another session in the books.</Text>
 
-      {unlockedBadges.map((badge) => (
-        <Card key={badge.id} variant="dark" style={styles.badgeCard}>
-          <Ionicons name="ribbon-outline" size={28} color={colors.accent} />
-          <View style={{ marginLeft: spacing.md }}>
-            <Text style={styles.badgeTitle}>Badge unlocked</Text>
-            <Text style={styles.badgeSubtitle}>{badge.title}</Text>
+      {insight && (
+        <Card variant="dark" style={styles.insightCard}>
+          <View style={styles.insightHeader}>
+            <Ionicons
+              name={insight.distractionCount === 0 ? 'checkmark-done-outline' : 'bulb-outline'}
+              size={24}
+              color={colors.accent}
+            />
+            <Text style={styles.insightHeadline}>{insight.headline}</Text>
           </View>
         </Card>
-      ))}
+      )}
 
       <PrimaryButton
         title="Back to dashboard"
@@ -70,6 +75,8 @@ export const SessionCompleteScreen: React.FC<Props> = ({ route, navigation }) =>
         onPress={() => navigation.navigate("MainTabs")}
         style={{ marginTop: spacing.xl, width: '100%' }}
       />
+
+      <BadgeUnlockModal badges={unlockedBadges} />
     </Screen>
   );
 };
@@ -100,19 +107,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: verticalScale(spacing.xl),
   },
-  badgeCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  insightCard: {
     width: '100%',
     marginBottom: verticalScale(spacing.md),
   },
-  badgeTitle: {
-    color: colors.textPrimary,
-    fontSize: normalizeFontSize(fontSizes.md),
-    fontWeight: '700',
+  insightHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  badgeSubtitle: {
-    color: colors.textSecondary,
+  insightHeadline: {
+    flex: 1,
+    color: colors.textPrimary,
     fontSize: normalizeFontSize(fontSizes.sm),
+    fontWeight: '700',
+    marginLeft: spacing.md,
   },
 });

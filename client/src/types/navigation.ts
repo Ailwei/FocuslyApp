@@ -1,3 +1,5 @@
+import { DistractionEvent } from '@/hooks/useDistractionDetector';
+
 export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
@@ -9,7 +11,12 @@ export type RootStackParamList = {
   MainTabs: undefined;
   NewSession: undefined;
   ActiveSession: { task: string; durationMinutes: number };
-  SessionComplete: { task: string; durationMinutes: number };
+  SessionComplete: {
+    task: string;
+    durationMinutes: number;
+    distractions?: DistractionEvent[];
+    sessionStartedAt?: string;
+  };
 };
 
 export type MainTabParamList = {

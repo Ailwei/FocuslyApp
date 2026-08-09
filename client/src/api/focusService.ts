@@ -1,4 +1,5 @@
 import { supabase, supabaseUrl, supabaseAnonKey } from '@/api/supabaseClient';
+import { DistractionEvent } from '@/hooks/useDistractionDetector';
 
 export const fetchProfile = async (userId: string) => {
   const { data, error } = await supabase
@@ -22,18 +23,19 @@ export const fetchSessions = async (userId: string) => {
   return data;
 };
 
-
 export const insertSession = async (
   userId: string,
   task: string,
   durationMinutes: number,
   completedAt: string,
+  distractions: DistractionEvent[] = [],
 ) => {
   console.log("insertSession started", {
     userId,
     task,
     durationMinutes,
     completedAt,
+    distractionCount: distractions.length,
   });
 
   const {
@@ -52,6 +54,7 @@ export const insertSession = async (
   if (!token) throw new Error('No authenticated session available');
 
   console.log("Calling Edge Function...");
+  console.log("DISTRACTIONS BEING SENT:", distractions.length, JSON.stringify(distractions));
 
   const response = await fetch(`${supabaseUrl}/functions/v1/create-session`, {
     method: 'POST',
@@ -64,14 +67,11 @@ export const insertSession = async (
       task,
       duration_minutes: durationMinutes,
       completed_at: completedAt,
+      distractions,
     }),
   });
 
-  console.log("Edge Function response status:", response.status);
-
   const payload = await response.json();
-
-  console.log("Edge Function payload:", payload);
 
   if (!response.ok) {
     throw new Error(payload.error ?? 'Unable to create session');
