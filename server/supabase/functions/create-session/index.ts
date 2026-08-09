@@ -4,6 +4,12 @@ import { validateCreateSessionInput } from '../validate.ts';
 import { getRequiredEnv } from '../env.ts';
 import { checkBadges } from '../check-badges/index.ts';
 
+interface DistractionInput {
+  leftAt: string;
+  returnedAt: string | null;
+  durationSeconds: number | null;
+}
+
 async function handleCreateSession(req: Request, supabaseClient?: any) {
   console.log("HANDLE START");
 
@@ -41,19 +47,16 @@ async function handleCreateSession(req: Request, supabaseClient?: any) {
     );
   }
 
-
   const url = getRequiredEnv('SUPABASE_URL');
   const serviceKey = getRequiredEnv('SUPABASE_SERVICE_ROLE_KEY');
 
   console.log("SUPABASE URL:", url);
-
 
   const controller = new AbortController();
 
   const timeout = setTimeout(() => {
     controller.abort();
   }, 5000);
-
 
   let userRes: Response;
 
@@ -80,17 +83,12 @@ async function handleCreateSession(req: Request, supabaseClient?: any) {
     clearTimeout(timeout);
   }
 
-
   console.log("AUTH STATUS:", userRes.status);
-
 
   if (!userRes.ok) {
     const text = await userRes.text();
 
-    console.log(
-      "AUTH ERROR:",
-      text
-    );
+    console.log("AUTH ERROR:", text);
 
     return jsonResponse(
       {
@@ -101,32 +99,20 @@ async function handleCreateSession(req: Request, supabaseClient?: any) {
     );
   }
 
-
   const userJson = await userRes.json();
 
-  const userId =
-    userJson?.id ??
-    userJson?.user?.id;
+  const userId = userJson?.id ?? userJson?.user?.id;
 
-
-  console.log(
-    "AUTH USER:",
-    userId
-  );
-
+  console.log("AUTH USER:", userId);
 
   if (!userId) {
     return jsonResponse(
-      {
-        error: 'Unable to determine user id'
-      },
+      { error: 'Unable to determine user id' },
       401
     );
   }
 
-
   body.user_id = userId;
-
 
   const {
     user_id,
@@ -135,106 +121,96 @@ async function handleCreateSession(req: Request, supabaseClient?: any) {
     completed_at
   } = body as CreateSessionInput;
 
+  const distractions: DistractionInput[] = Array.isArray(body.distractions)
+    ? body.distractions
+    : [];
 
+  const validation = validateCreateSessionInput(body);
 
-  const validation =
-    validateCreateSessionInput(body);
-
-
-  console.log(
-    "VALIDATION:",
-    validation
-  );
-
+  console.log("VALIDATION:", validation);
 
   if (validation.length) {
     return jsonResponse(
-      {
-        error: validation.join(', ')
-      },
+      { error: validation.join(', ') },
       400
     );
   }
 
+  const supabase = supabaseClient ?? createSupabaseClient();
 
+  console.log("INSERTING SESSION:", {
+    user_id,
+    task,
+    duration_minutes,
+    completed_at,
+    distraction_count: distractions.length,
+  });
 
-  const supabase =
-    supabaseClient ??
-    createSupabaseClient();
+  const { data, error } = await supabase
+    .from("sessions")
+    .insert([
+      {
+        user_id,
+        task,
+        duration_minutes,
+        completed_at,
+        distraction_count: distractions.length,
+      },
+    ])
+    .select()
+    .single();
 
+  console.log("Inserted session:", data);
+  console.log("Insert error:", error);
 
+  if (error) {
+    return jsonResponse({ error: error.message }, 500);
+  }
 
-  console.log(
-    "INSERTING SESSION:",
-    {
+  if (distractions.length > 0) {
+    const distractionRows = distractions.map((d) => ({
+      session_id: data.id,
       user_id,
-      task,
-      duration_minutes,
-      completed_at,
+      left_at: d.leftAt,
+      returned_at: d.returnedAt,
+      duration_seconds: d.durationSeconds,
+    }));
+
+    const { error: distractionError } = await supabase
+      .from("session_distractions")
+      .insert(distractionRows);
+
+    console.log("Distraction insert error:", distractionError);
+
+    if (distractionError) {
+      console.error("Failed to insert distractions, session still saved:", distractionError);
     }
-  );
+  }
 
+  const unlockedBadges = await checkBadges(userId, supabase);
 
+  console.log("Unlocked badges:", unlockedBadges);
 
- const { data, error } = await supabase
-  .from("sessions")
-  .insert([
+  return jsonResponse(
     {
-      user_id,
-      task,
-      duration_minutes,
-      completed_at,
+      session: data,
+      badges: unlockedBadges,
     },
-  ])
-  .select()
-  .single();
-
-console.log("Inserted session:", data);
-console.log("Insert error:", error);
-
-if (error) {
-  return jsonResponse({ error: error.message }, 500);
+    201
+  );
 }
-
-const unlockedBadges = await checkBadges(userId, supabase);
-
-console.log("Unlocked badges:", unlockedBadges);
-
-return jsonResponse(
-  {
-    session: data,
-    badges: unlockedBadges,
-  },
-  201
-);
-}
-
 
 Deno.serve(async (req: Request) => {
-
-  console.log(
-    "CREATE SESSION REQUEST RECEIVED"
-  );
-
+  console.log("CREATE SESSION REQUEST RECEIVED");
 
   try {
-
     return await handleCreateSession(req);
-
   } catch (error) {
-
-    console.error(
-      "FUNCTION CRASH:",
-      error
-    );
-
+    console.error("FUNCTION CRASH:", error);
 
     return jsonResponse(
-      {
-        error: String(error)
-      },
+      { error: String(error) },
       500
     );
   }
-
 });
