@@ -11,6 +11,8 @@ import { fetchBadges } from "@/api/badgeService";
 
 interface BadgeContextValue {
   badges: Badge[];
+  loading: boolean;
+  error: string | null;
   refreshBadges: () => Promise<Badge[]>;
 }
 
@@ -25,16 +27,30 @@ export const BadgeProvider = ({
   const { user } = useAuth();
 
   const [badges, setBadges] = useState<Badge[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
   const refreshBadges = useCallback(async (): Promise<Badge[]> => {
 
-    if (!user) return [];
+    if (!user) {
+      setBadges([]);
+      return [];
+    }
 
-    const data = await fetchBadges();
+    setLoading(true);
+    setError(null);
 
-    setBadges(data);
-
-    return data;
+    try {
+      const data = await fetchBadges();
+      setBadges(data);
+      return data;
+    } catch (err) {
+      console.error('Unable to load badges:', err);
+      setError(err instanceof Error ? err.message : 'Unable to load badges');
+      return [];
+    } finally {
+      setLoading(false);
+    }
 
   }, [user]);
 
@@ -48,6 +64,8 @@ export const BadgeProvider = ({
     <BadgeContext.Provider
       value={{
         badges,
+        loading,
+        error,
         refreshBadges
       }}
     >

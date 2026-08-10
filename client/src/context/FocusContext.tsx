@@ -37,7 +37,8 @@ export const FocusProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setIsLoading(true);
       try {
         const profileData = await fetchProfile(user.id);
-
+console.log('PROFILE DATA:', profileData);
+console.log('MEMBER SINCE:', profileData?.member_since);
         setProfile({
           id: user.id,
           name: profileData?.name ?? user?.name ?? user.email,

@@ -12,10 +12,31 @@ interface Props {
 export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
   const { profile } = useFocus();
 
+  const formatMemberSince = (date: string | undefined) => {
+  if (!date) return '';
+
+  const normalizedDate = date
+    .replace(' ', 'T')
+    .replace(/\+00$/, 'Z');
+
+  const parsedDate = new Date(normalizedDate);
+
+  if (isNaN(parsedDate.getTime())) {
+    console.log('Invalid member date:', date);
+    return '';
+  }
+
+  return parsedDate.toLocaleDateString('en-ZA', {
+    month: 'long',
+    year: 'numeric',
+  });
+};
   return (
     <Screen>
       <Text style={styles.name}>{profile?.name}</Text>
-      <Text style={styles.member}>Member since {profile?.memberSince}</Text>
+<Text style={styles.member}>
+  Member since {formatMemberSince(profile?.memberSince)}
+</Text>
 
       <TouchableOpacity style={styles.row}>
         <Ionicons name="settings-outline" size={20} color={colors.textPrimary} />

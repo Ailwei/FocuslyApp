@@ -2,7 +2,7 @@ export interface FocusSession {
   id: string;
   task: string;
   durationMinutes: number;
-  completedAt: string; // ISO date string
+  completedAt: string;
 }
 
 export interface Badge {
@@ -10,6 +10,7 @@ export interface Badge {
   title: string;
   category: 'Milestones' | 'Time' | 'Sessions';
   unlocked: boolean;
+  unlockedAt?: string;
 }
 
 export interface Stats {
@@ -23,5 +24,5 @@ export interface UserProfile {
   id: string;
   name: string;
   email?: string | null;
-  memberSince: string; // e.g. "Jan 2026"
+  memberSince: string;
 }

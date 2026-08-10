@@ -69,26 +69,29 @@ console.log("badges unclocked", unlockedCount, badges)
       </Screen>
     );
   }
+return (
+  <Screen>
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={{ paddingBottom: verticalScale(spacing.xl) }}
+      showsVerticalScrollIndicator={false}
+    >
+      <ScreenTitle>Badges</ScreenTitle>
+      <Text style={styles.subtitle}>{unlockedCount} of {badges.length} unlocked</Text>
 
-  return (
-    <Screen>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <ScreenTitle>Badges</ScreenTitle>
-        <Text style={styles.subtitle}>{unlockedCount} of {badges.length} unlocked</Text>
-
-        {categories.map((category) => (
-          <View key={category}>
-            <Text style={styles.sectionLabel}>{category}</Text>
-            <View style={styles.grid}>
-              {byCategory(category).map((b: Badge) => (
-                <BadgeTile key={b.id} badge={b} />
-              ))}
-            </View>
+      {categories.map((category) => (
+        <View key={category}>
+          <Text style={styles.sectionLabel}>{category}</Text>
+          <View style={styles.grid}>
+            {byCategory(category).map((b: Badge) => (
+              <BadgeTile key={b.id} badge={b} />
+            ))}
           </View>
-        ))}
-      </ScrollView>
-    </Screen>
-  );
+        </View>
+      ))}
+    </ScrollView>
+  </Screen>
+);
 };
 
 const styles = StyleSheet.create({

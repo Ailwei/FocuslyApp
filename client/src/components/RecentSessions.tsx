@@ -19,30 +19,41 @@ interface RecentSessionsProps {
   sessions: FocusSession[];
 }
 
-export const RecentSessions: React.FC<RecentSessionsProps> = ({ sessions }) => (
-  <Card variant="mid" style={styles.container}>
-    {sessions.length === 0 ? (
-      <View style={styles.emptyState}>
-        <Ionicons name="time-outline" size={scale(28)} color={colors.textMuted} />
-        <Text style={styles.emptyTitle}>No sessions yet</Text>
-        <Text style={styles.emptySubtitle}>Your completed focus sessions will show up here</Text>
-      </View>
-    ) : (
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {sessions.map((session) => (
-          <View key={session.id} style={styles.historyRow}>
-            <Ionicons name="checkbox-outline" size={scale(20)} color={colors.textPrimary} />
-            <View style={styles.historyTextWrap}>
-              <Text style={styles.historyTask}>{session.task}</Text>
-              <Text style={styles.historyTime}>{relativeTime(session.completedAt)}</Text>
+export const RecentSessions: React.FC<RecentSessionsProps> = ({ sessions }) => {
+  // Forces a re-render every 60s so relativeTime() re-evaluates and the
+  // "Xh ago" labels stay current without needing navigation/logout.
+  const [, forceTick] = React.useReducer((n) => n + 1, 0);
+
+  React.useEffect(() => {
+    const interval = setInterval(() => forceTick(), 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <Card variant="mid" style={styles.container}>
+      {sessions.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Ionicons name="time-outline" size={scale(28)} color={colors.textMuted} />
+          <Text style={styles.emptyTitle}>No sessions yet</Text>
+          <Text style={styles.emptySubtitle}>Your completed focus sessions will show up here</Text>
+        </View>
+      ) : (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          {sessions.map((session) => (
+            <View key={session.id} style={styles.historyRow}>
+              <Ionicons name="arrow-forward-circle-outline" size={scale(20)} color={colors.textPrimary} />
+              <View style={styles.historyTextWrap}>
+                <Text style={styles.historyTask}>{session.task}</Text>
+                <Text style={styles.historyTime}>{relativeTime(session.completedAt)}</Text>
+              </View>
+              <Text style={styles.historyDuration}>{session.durationMinutes}m</Text>
             </View>
-            <Text style={styles.historyDuration}>{session.durationMinutes}m</Text>
-          </View>
-        ))}
-      </ScrollView>
-    )}
-  </Card>
-);
+          ))}
+        </ScrollView>
+      )}
+    </Card>
+  );
+};
 
 const styles = StyleSheet.create({
   container: {

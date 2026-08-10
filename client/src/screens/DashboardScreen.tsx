@@ -41,6 +41,12 @@ export const DashboardScreen: React.FC = () => {
     (badge: { unlocked: any; }) => badge.unlocked
   );
 
+  const latestBadge = unlockedBadges.length > 0
+    ? [...unlockedBadges].sort(
+      (a, b) => new Date(b.unlockedAt ?? 0).getTime() - new Date(a.unlockedAt ?? 0).getTime()
+    )[0]
+    : null;
+
   const todayMinutes = sessions
     .filter((s) => new Date(s.completedAt).toDateString() === new Date().toDateString())
     .reduce((sum, s) => sum + s.durationMinutes, 0);
@@ -88,13 +94,13 @@ export const DashboardScreen: React.FC = () => {
               {unlockedBadges.length} unlocked
             </Text>
 
-            {unlockedBadges.length > 0 ? (
+            {latestBadge ? (
               <View style={styles.latestBadgeRow}>
                 <View style={styles.latestBadgeIconWrap}>
                   <Ionicons name="ribbon" size={16} color={colors.accent} />
                 </View>
                 <Text style={styles.badgePreview} numberOfLines={1}>
-                  {unlockedBadges[unlockedBadges.length - 1].title}
+                  {latestBadge.title}
                 </Text>
               </View>
             ) : (

@@ -10,7 +10,11 @@ export const StatisticsScreen: React.FC = () => {
 
   return (
     <Screen>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <ScreenTitle>Statistics</ScreenTitle>
         <View style={styles.statsGrid}>
           <Card variant="dark" style={styles.statTile}>
@@ -38,6 +42,9 @@ export const StatisticsScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
+  scrollContent: {
+    paddingBottom: spacing.xl,
+  },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
