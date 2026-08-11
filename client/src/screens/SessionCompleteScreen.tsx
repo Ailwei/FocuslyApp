@@ -56,18 +56,55 @@ export const SessionCompleteScreen: React.FC<Props> = ({ route, navigation }) =>
       </Text>
       <Text style={styles.message}>Great work. That's another session in the books.</Text>
 
-      {insight && (
-        <Card variant="dark" style={styles.insightCard}>
-          <View style={styles.insightHeader}>
-            <Ionicons
-              name={insight.distractionCount === 0 ? 'checkmark-done-outline' : 'bulb-outline'}
-              size={24}
-              color={colors.accent}
-            />
-            <Text style={styles.insightHeadline}>{insight.headline}</Text>
-          </View>
-        </Card>
-      )}
+   {insight && (
+  <Card variant="dark" style={styles.insightCard}>
+    <View style={styles.insightHeader}>
+      <Ionicons
+        name={
+          insight.distractionCount === 0
+            ? 'checkmark-done-outline'
+            : 'bulb-outline'
+        }
+        size={24}
+        color={colors.accent}
+      />
+      <Text style={styles.insightHeadline}>
+        {insight.headline}
+      </Text>
+    </View>
+  </Card>
+)}
+
+{distractions.length > 0 && (
+  <Card variant="dark" style={styles.distractionCard}>
+    <Text style={styles.distractionTitle}>
+      Distractions
+    </Text>
+
+    {distractions.map((distraction) => (
+      <View
+        key={distraction.id}
+        style={styles.distractionItem}
+      >
+        <Ionicons
+          name="phone-portrait-outline"
+          size={20}
+          color={colors.accent}
+        />
+
+        <View style={styles.distractionText}>
+          <Text style={styles.distractionApp}>
+            {distraction.appName || 'Unknown app'}
+          </Text>
+
+          <Text style={styles.distractionTime}>
+            {distraction.durationSeconds ?? 0} seconds lost
+          </Text>
+        </View>
+      </View>
+    ))}
+  </Card>
+)}
 
       <PrimaryButton
         title="Back to dashboard"
@@ -122,4 +159,38 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginLeft: spacing.md,
   },
+  distractionCard: {
+  width: '100%',
+  marginBottom: verticalScale(spacing.md),
+},
+
+distractionTitle: {
+  color: colors.textPrimary,
+  fontSize: normalizeFontSize(fontSizes.md),
+  fontWeight: '700',
+  marginBottom: verticalScale(spacing.sm),
+},
+
+distractionItem: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  paddingVertical: verticalScale(spacing.sm),
+},
+
+distractionText: {
+  flex: 1,
+  marginLeft: spacing.md,
+},
+
+distractionApp: {
+  color: colors.textPrimary,
+  fontSize: normalizeFontSize(fontSizes.sm),
+  fontWeight: '700',
+},
+
+distractionTime: {
+  color: colors.textSecondary,
+  fontSize: normalizeFontSize(fontSizes.sm),
+  marginTop: 2,
+},
 });

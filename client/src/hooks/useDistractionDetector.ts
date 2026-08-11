@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
+import { NativeModules } from 'react-native';
+const { UsageStatsModule } = NativeModules;
 
 export interface DistractionEvent {
   id: string;
-  leftAt: string;     
+  leftAt: string;
   returnedAt: string | null;
   durationSeconds: number | null;
+  appName: string | null;
+  packageName: string | null;
 }
 
 interface UseDistractionDetectorOptions {
@@ -18,8 +22,28 @@ export function useDistractionDetector({
   onDistraction,
 }: UseDistractionDetectorOptions) {
   const [distractions, setDistractions] = useState<DistractionEvent[]>([]);
+
   const appState = useRef<AppStateStatus>(AppState.currentState);
-  const pendingLeave = useRef<{ id: string; leftAt: string } | null>(null);
+  const isActiveRef = useRef(isActive);
+  const onDistractionRef = useRef(onDistraction);
+
+  const pendingLeave = useRef<{
+    id: string;
+    leftAt: string;
+  } | null>(null);
+
+  useEffect(() => {
+    isActiveRef.current = isActive;
+
+    console.log(
+      '[Distraction] isActive =',
+      isActive
+    );
+  }, [isActive]);
+
+  useEffect(() => {
+    onDistractionRef.current = onDistraction;
+  }, [onDistraction]);
 
   const reset = useCallback(() => {
     setDistractions([]);
@@ -27,40 +51,172 @@ export function useDistractionDetector({
   }, []);
 
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextState) => {
-      const prevState = appState.current;
-      appState.current = nextState;
+    console.log(
+      '[Distraction] Listener registered. Current state:',
+      AppState.currentState
+    );
 
-      if (!isActive) return;
+    const subscription = AppState.addEventListener(
+      'change',
+      async (nextState) => {
+        const previousState = appState.current;
 
-      const wasForeground = prevState === 'active';
-      const nowBackground = nextState === 'background' || nextState === 'inactive';
-      const wasBackground = prevState === 'background' || prevState === 'inactive';
-      const nowForeground = nextState === 'active';
-
-      if (wasForeground && nowBackground) {
-        const id = Date.now().toString();
-        pendingLeave.current = { id, leftAt: new Date().toISOString() };
-      }
-
-      if (wasBackground && nowForeground && pendingLeave.current) {
-        const { id, leftAt } = pendingLeave.current;
-        const returnedAt = new Date().toISOString();
-        const durationSeconds = Math.round(
-          (new Date(returnedAt).getTime() - new Date(leftAt).getTime()) / 1000
+        console.log(
+          '[Distraction] STATE:',
+          previousState,
+          '→',
+          nextState,
+          '| active:',
+          isActiveRef.current
         );
 
-        const event: DistractionEvent = { id, leftAt, returnedAt, durationSeconds };
+        appState.current = nextState;
 
-        setDistractions((prev) => [...prev, event]);
-        onDistraction?.(event);
+        if (!isActiveRef.current) {
+          console.log(
+            '[Distraction] Ignored — no active session'
+          );
+          return;
+        }
 
-        pendingLeave.current = null;
+        const leftFocusly =
+          previousState === 'active' &&
+          (nextState === 'background' ||
+            nextState === 'inactive');
+
+        const returnedToFocusly =
+          (previousState === 'background' ||
+            previousState === 'inactive') &&
+          nextState === 'active';
+
+        if (leftFocusly) {
+          const leftAt = new Date().toISOString();
+
+          pendingLeave.current = {
+            id: `${Date.now()}`,
+            leftAt,
+          };
+
+          console.log(
+            '[Distraction] LEFT FOCUSLY:',
+            leftAt
+          );
+        }
+
+        if (returnedToFocusly) {
+          const pending = pendingLeave.current;
+
+          if (!pending) {
+            console.log(
+              '[Distraction] Returned, but no pending leave!'
+            );
+            return;
+          }
+
+          const returnedAt = new Date().toISOString();
+
+          const durationSeconds = Math.max(
+            0,
+            Math.round(
+              (Date.parse(returnedAt) -
+                Date.parse(pending.leftAt)) /
+                1000
+            )
+          );
+let apps: any[] = [];
+
+try {
+  if (UsageStatsModule?.getAppsUsedBetween) {
+    const result = await UsageStatsModule.getAppsUsedBetween(
+      pending.leftAt,
+      returnedAt
+    );
+
+    console.log('[Distraction] APPS USED:', result);
+
+    if (Array.isArray(result)) {
+      apps = result;
+    }
+  }
+} catch (error) {
+  console.warn(
+    '[Distraction] Failed to identify apps:',
+    error
+  );
+}
+
+const filteredApps = apps.filter(
+  (app: any) =>
+    app?.packageName &&
+    app.packageName !== 'com.focusly.app' &&
+    app.packageName !== 'com.google.android.apps.nexuslauncher'
+);
+
+console.log(
+  '[Distraction] FILTERED APPS:',
+  filteredApps
+);
+
+if (filteredApps.length === 0) {
+  const event: DistractionEvent = {
+    id: pending.id,
+    leftAt: pending.leftAt,
+    returnedAt,
+    durationSeconds,
+    appName: null,
+    packageName: null,
+  };
+
+  setDistractions((previous) => [
+    ...previous,
+    event,
+  ]);
+
+  onDistractionRef.current?.(event);
+} else {
+  const events: DistractionEvent[] = filteredApps.map(
+    (app: any, index: number) => ({
+      id: `${pending.id}-${index}`,
+      leftAt: pending.leftAt,
+      returnedAt,
+      durationSeconds,
+      appName: app.appName ?? null,
+      packageName: app.packageName ?? null,
+    })
+  );
+
+  console.log(
+    '[Distraction] EVENTS CREATED:',
+    events
+  );
+
+  setDistractions((previous) => [
+    ...previous,
+    ...events,
+  ]);
+
+   events.forEach((event) => {
+    onDistractionRef.current?.(event);
+  });
+}
+
+pendingLeave.current = null;
+        }
       }
-    });
+    );
 
-    return () => subscription.remove();
-  }, [isActive, onDistraction]);
+    return () => {
+      console.log(
+        '[Distraction] Listener removed'
+      );
 
-  return { distractions, distractionCount: distractions.length, reset };
+      subscription.remove();
+    };
+  }, []);
+
+  return {
+    distractions,
+    distractionCount: distractions.length,
+    reset,
+  };
 }

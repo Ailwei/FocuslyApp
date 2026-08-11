@@ -49,7 +49,6 @@ export const insertSession = async (
 
   const token = sessionData.session?.access_token;
 
-  console.log("Access token exists:", !!token);
 
   if (!token) throw new Error('No authenticated session available');
 

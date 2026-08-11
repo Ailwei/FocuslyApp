@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
@@ -6,7 +6,12 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/types/navigation';
 import { Screen } from '@/components/UI';
 import { colors, spacing, fontSizes, radius } from '@/theme/theme';
-import { responsiveWidth, scale, verticalScale, normalizeFontSize } from '@/theme/responsive';
+import {
+  responsiveWidth,
+  scale,
+  verticalScale,
+  normalizeFontSize,
+} from '@/theme/responsive';
 import { useFocus } from '@/context/FocusContext';
 import { useDistractionDetector } from '@/hooks/useDistractionDetector';
 
@@ -18,63 +23,132 @@ const RADIUS = (CIRCLE_SIZE - STROKE_WIDTH) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 function formatTime(totalSeconds: number): string {
-  const m = Math.floor(totalSeconds / 60);
-  const s = totalSeconds % 60;
+  const safeSeconds = Math.max(0, totalSeconds);
+  const m = Math.floor(safeSeconds / 60);
+  const s = safeSeconds % 60;
+
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-export const ActiveSessionScreen: React.FC<Props> = ({ route, navigation }) => {
+export const ActiveSessionScreen: React.FC<Props> = ({
+  route,
+  navigation,
+}) => {
   const { task, durationMinutes } = route.params;
-  const totalSeconds = durationMinutes * 60;
-  const [secondsLeft, setSecondsLeft] = useState(totalSeconds);
-  const [isPaused, setIsPaused] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const { addSession } = useFocus();
 
-  const [sessionStartedAt] = useState(() => new Date().toISOString());
-  const { distractions } = useDistractionDetector({ isActive: true });
+  const {
+    activeSession,
+    startSession,
+    pauseSession,
+    resumeSession,
+    cancelSession,
+    recordDistraction,
+  } = useFocus();
+
+  const { distractions } = useDistractionDetector({
+    isActive: !!activeSession && !activeSession.isPaused,
+    onDistraction: recordDistraction,
+  });
+
+  const hasStartedRef = React.useRef(false);
+  const startedSessionAtRef = React.useRef<string | null>(null);
+  const completionHandledRef = React.useRef(false);
 
   useEffect(() => {
-    if (isPaused) {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      return;
-    }
-    intervalRef.current = setInterval(() => {
-      setSecondsLeft((prev) => (prev <= 1 ? 0 : prev - 1));
-    }, 1000);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+    let cancelled = false;
+
+    const beginSession = async () => {
+      if (hasStartedRef.current) return;
+
+      hasStartedRef.current = true;
+
+      try {
+        const startedAt = await startSession(task, durationMinutes);
+
+        if (!cancelled) {
+          startedSessionAtRef.current = startedAt;
+        }
+      } catch (error) {
+        console.error('[Focus] Failed to start session:', error);
+        hasStartedRef.current = false;
+      }
     };
-  }, [isPaused]);
+
+    beginSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [task, durationMinutes, startSession]);
 
   useEffect(() => {
-    if (secondsLeft === 0) {
-      navigation.replace('SessionComplete', {
-        task,
-        durationMinutes,
-        distractions,
-        sessionStartedAt,
-      });
-    }
-  }, [secondsLeft, navigation, task, durationMinutes, distractions, sessionStartedAt]);
+  if (!activeSession) return;
 
-  const progress = secondsLeft / totalSeconds;
-  const strokeDashoffset = CIRCUMFERENCE * (1 - progress);
+  if (!startedSessionAtRef.current) return;
 
-  const endSession = () => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    const elapsedMinutes = Math.max(1, Math.round((totalSeconds - secondsLeft) / 60));
+  if (activeSession.startedAt !== startedSessionAtRef.current) {
+    return;
+  }
+
+  if (
+    activeSession.status === 'completed' &&
+    !completionHandledRef.current
+  ) {
+    completionHandledRef.current = true;
+
+    console.log('[Focus] Current session completed — navigating');
+
     navigation.replace('SessionComplete', {
-      task,
-      durationMinutes: elapsedMinutes,
+      task: activeSession.task,
+      durationMinutes: activeSession.durationMinutes,
       distractions,
-      sessionStartedAt,
+      sessionStartedAt: activeSession.startedAt,
     });
+  }
+}, [activeSession, distractions, navigation]);
+
+  if (!activeSession) {
+    return (
+      <Screen style={styles.center}>
+        <Text style={styles.taskTitle}>Starting…</Text>
+      </Screen>
+    );
+  }
+
+  const {
+    remainingSeconds,
+    totalSeconds,
+    isPaused,
+  } = activeSession;
+
+  const progress =
+    totalSeconds > 0
+      ? remainingSeconds / totalSeconds
+      : 0;
+
+  const strokeDashoffset =
+    CIRCUMFERENCE * (1 - progress);
+
+  const handleEndSession = async () => {
+    const result = await cancelSession();
+
+    if (result) {
+      navigation.replace('SessionComplete', {
+        task: result.task,
+        durationMinutes: result.elapsedMinutes,
+        distractions,
+        sessionStartedAt: result.startedAt,
+      });
+    } else {
+      navigation.goBack();
+    }
   };
 
   return (
     <Screen style={styles.center}>
-      <Text style={styles.taskTitle}>{task}</Text>
+      <Text style={styles.taskTitle}>
+        {activeSession.task}
+      </Text>
 
       <View style={styles.timerWrap}>
         <Svg width={CIRCLE_SIZE} height={CIRCLE_SIZE}>
@@ -86,6 +160,7 @@ export const ActiveSessionScreen: React.FC<Props> = ({ route, navigation }) => {
             strokeWidth={STROKE_WIDTH}
             fill="none"
           />
+
           <Circle
             cx={CIRCLE_SIZE / 2}
             cy={CIRCLE_SIZE / 2}
@@ -100,18 +175,46 @@ export const ActiveSessionScreen: React.FC<Props> = ({ route, navigation }) => {
             origin={`${CIRCLE_SIZE / 2}, ${CIRCLE_SIZE / 2}`}
           />
         </Svg>
+
         <View style={styles.timerTextWrap}>
-          <Text style={styles.timerText}>{formatTime(secondsLeft)}</Text>
+          <Text style={styles.timerText}>
+            {formatTime(remainingSeconds)}
+          </Text>
         </View>
       </View>
 
       <View style={styles.buttonsRow}>
-        <TouchableOpacity style={styles.pauseButton} onPress={() => setIsPaused((p) => !p)}>
-          <Ionicons name={isPaused ? 'play' : 'pause'} size={18} color={colors.textPrimary} />
-          <Text style={styles.buttonText}>{isPaused ? 'Resume' : 'Pause'}</Text>
+        <TouchableOpacity
+          style={styles.pauseButton}
+          onPress={
+            isPaused
+              ? resumeSession
+              : pauseSession
+          }
+        >
+          <Ionicons
+            name={isPaused ? 'play' : 'pause'}
+            size={18}
+            color={colors.textPrimary}
+          />
+
+          <Text style={styles.buttonText}>
+            {isPaused ? 'Resume' : 'Pause'}
+          </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.endButton} onPress={endSession}>
-          <Text style={[styles.buttonText, { color: colors.danger }]}>End session</Text>
+
+        <TouchableOpacity
+          style={styles.endButton}
+          onPress={handleEndSession}
+        >
+          <Text
+            style={[
+              styles.buttonText,
+              { color: colors.danger },
+            ]}
+          >
+            End session
+          </Text>
         </TouchableOpacity>
       </View>
     </Screen>
@@ -122,6 +225,7 @@ const styles = StyleSheet.create({
   center: {
     alignItems: 'center',
   },
+
   taskTitle: {
     color: colors.textPrimary,
     fontSize: normalizeFontSize(fontSizes.lg),
@@ -129,6 +233,7 @@ const styles = StyleSheet.create({
     marginTop: verticalScale(spacing.xl),
     marginBottom: verticalScale(spacing.xl),
   },
+
   timerWrap: {
     width: CIRCLE_SIZE,
     height: CIRCLE_SIZE,
@@ -136,19 +241,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: verticalScale(spacing.xxl),
   },
+
   timerTextWrap: {
     position: 'absolute',
   },
+
   timerText: {
     color: colors.textPrimary,
     fontSize: normalizeFontSize(fontSizes.xxl),
     fontWeight: '700',
   },
+
   buttonsRow: {
     flexDirection: 'row',
     gap: scale(spacing.md),
     width: '100%',
   },
+
   pauseButton: {
     flex: 1,
     flexDirection: 'row',
@@ -159,6 +268,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: verticalScale(spacing.md),
   },
+
   endButton: {
     flex: 1,
     alignItems: 'center',
@@ -167,6 +277,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: verticalScale(spacing.md),
   },
+
   buttonText: {
     color: colors.textPrimary,
     fontSize: normalizeFontSize(fontSizes.md),
