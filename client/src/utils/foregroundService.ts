@@ -19,7 +19,7 @@ export const startFocusForegroundService = async (remainingSeconds: number) => {
     importance: 'high',
     visibility: 'public',
     vibration: false,
-    setOnlyAlertOnce: 'true',
+    setOnlyAlertOnce: true,
   } as any);
 };
 
@@ -30,8 +30,8 @@ export const updateFocusNotification = async (remainingSeconds: number) => {
     message: formatRemainingTime(remainingSeconds),
     importance: 'high',
     visibility: 'public',
-    setOnlyAlertOnce: 'true',
-  });
+    setOnlyAlertOnce: true,
+  } as any);
 };
 
 export const stopFocusForegroundService = async () => {

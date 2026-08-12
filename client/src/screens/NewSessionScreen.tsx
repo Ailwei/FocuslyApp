@@ -7,7 +7,7 @@ import { RootStackParamList } from '@/types/navigation';
 import { PrimaryButton, ScreenTitle, Screen } from '@/components/UI';
 import { colors, spacing, radius, fontSizes } from '@/theme/theme';
 import { scale, verticalScale, normalizeFontSize } from '@/theme/responsive';
-import { useFocus } from '@/context/FocusContext';
+import * as Notifications from 'expo-notifications';
 
 const { UsageStatsModule } = NativeModules;
 const DURATIONS = [
@@ -25,6 +25,14 @@ export const NewSessionScreen: React.FC = () => {
 
   const startSession = async () => {
     try {
+
+       const { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') {
+      const { status: newStatus } = await Notifications.requestPermissionsAsync();
+      if (newStatus !== 'granted') {
+        console.log('[Notifications] Permission denied');
+      }
+    }
       const hasAccess = await UsageStatsModule.hasUsageAccess();
 
       console.log('[UsageAccess] Granted:', hasAccess);
