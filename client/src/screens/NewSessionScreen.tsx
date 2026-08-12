@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { NativeModules } from 'react-native';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -8,6 +9,7 @@ import { colors, spacing, radius, fontSizes } from '@/theme/theme';
 import { scale, verticalScale, normalizeFontSize } from '@/theme/responsive';
 import { useFocus } from '@/context/FocusContext';
 
+const { UsageStatsModule } = NativeModules;
 const DURATIONS = [
   { label: '1 min', minutes: 1 },
   { label: '45 min', minutes: 45 },
@@ -21,12 +23,34 @@ export const NewSessionScreen: React.FC = () => {
   const [customMode, setCustomMode] = useState(false);
   const [customMinutes, setCustomMinutes] = useState('30');
 
-  const startSession = () => {
-    const minutes = customMode ? parseInt(customMinutes, 10) || 25 : selectedMinutes;
-    navigation.replace('ActiveSession', {
-      task: task.trim() || 'Focus session',
-      durationMinutes: minutes,
-    });
+  const startSession = async () => {
+    try {
+      const hasAccess = await UsageStatsModule.hasUsageAccess();
+
+      console.log('[UsageAccess] Granted:', hasAccess);
+
+      if (!hasAccess) {
+        console.log('[UsageAccess] Opening settings...');
+
+        await UsageStatsModule.openUsageAccessSettings();
+
+        return;
+      }
+
+      const minutes = customMode
+        ? parseInt(customMinutes, 10) || 25
+        : selectedMinutes;
+
+      navigation.replace('ActiveSession', {
+        task: task.trim() || 'Focus session',
+        durationMinutes: minutes,
+      });
+    } catch (error) {
+      console.error(
+        '[UsageAccess] Failed:',
+        error
+      );
+    }
   };
 
   return (
