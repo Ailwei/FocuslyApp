@@ -10,6 +10,7 @@ import {
   stopFocusTickTask,
   stopFocusForegroundService,
 } from '@/utils/foregroundService';
+import * as Notifications from 'expo-notifications';
 
 interface ActiveSession {
   task: string;
@@ -149,6 +150,12 @@ const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const completeSession = useCallback(async () => {
   console.log('[Focus] SESSION COMPLETED');
 
+  if (endTimestampRef.current === null) {
+    return;
+  }
+
+  endTimestampRef.current = null;
+
   if (timerRef.current) {
     clearInterval(timerRef.current);
     timerRef.current = null;
@@ -156,9 +163,25 @@ const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   stopFocusTickTask();
 
-  await stopFocusForegroundService().catch(() => {});
+  try {
+    const notificationId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Focus session complete 🎉',
+        body: 'Great work! Your focus session is finished.',
+        sound: 'default',
+        data: {
+          type: 'focus-session-complete',
+        },
+      },
+      trigger: null,
+    });
 
-  endTimestampRef.current = null;
+    console.log('[Focus] Completion notification sent:', notificationId);
+  } catch (error) {
+    console.error('[Focus] Completion notification FAILED:', error);
+  }
+
+  await stopFocusForegroundService().catch(() => {});
 
   setActiveSession((prev) =>
     prev
