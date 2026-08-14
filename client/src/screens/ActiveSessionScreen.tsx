@@ -55,6 +55,13 @@ export const ActiveSessionScreen: React.FC<Props> = ({
   const completionHandledRef = React.useRef(false);
 
   useEffect(() => {
+    if (activeSession) {
+      // already running (rehydrated from context on app boot) — don't restart it
+      hasStartedRef.current = true;
+      startedSessionAtRef.current = activeSession.startedAt;
+      return;
+    }
+
     let cancelled = false;
 
     const beginSession = async () => {

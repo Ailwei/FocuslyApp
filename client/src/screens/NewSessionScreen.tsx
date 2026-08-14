@@ -53,6 +53,7 @@ export const NewSessionScreen: React.FC = () => {
         task: task.trim() || 'Focus session',
         durationMinutes: minutes,
       });
+      
     } catch (error) {
       console.error(
         '[UsageAccess] Failed:',
